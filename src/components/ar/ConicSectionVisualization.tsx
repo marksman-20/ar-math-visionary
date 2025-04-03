@@ -1,7 +1,7 @@
 
 import { useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, useHelper, Grid } from '@react-three/drei';
+import { OrbitControls, Grid } from '@react-three/drei';
 import * as THREE from 'three';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -82,58 +82,61 @@ const generateConicPoints = (type: ConicType, params: ConicParams, segments = 10
 // Component to render a conic section
 const ConicSection = ({ type, params, color = "#0EA5E9" }: ConicSectionProps) => {
   const points = generateConicPoints(type, params);
+  const positions = new Float32Array(points.flatMap(p => [p.x, p.y, p.z]));
   
   return (
     <>
-      <lineSegments>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={points.length}
-            array={new Float32Array(points.flatMap(p => [p.x, p.y, p.z]))}
-            itemSize={3}
-          />
-        </bufferGeometry>
-        <lineBasicMaterial color={color} linewidth={2} />
-      </lineSegments>
-      
-      {/* Plot the focus points for ellipse, parabola and hyperbola */}
-      {type !== 'circle' && (
-        <>
-          {type === 'ellipse' && (
-            <>
-              <mesh position={[params.h + Math.sqrt(params.a*params.a - params.b*params.b), 0, params.k]}>
+      <group>
+        <lineSegments>
+          <bufferGeometry>
+            <bufferAttribute
+              attach="attributes-position"
+              count={points.length}
+              array={positions}
+              itemSize={3}
+            />
+          </bufferGeometry>
+          <lineBasicMaterial color={color} linewidth={2} />
+        </lineSegments>
+        
+        {/* Plot the focus points for ellipse, parabola and hyperbola */}
+        {type !== 'circle' && (
+          <>
+            {type === 'ellipse' && (
+              <>
+                <mesh position={[params.h + Math.sqrt(params.a*params.a - params.b*params.b), 0, params.k]}>
+                  <sphereGeometry args={[0.1, 16, 16]} />
+                  <meshStandardMaterial color="#F97316" />
+                </mesh>
+                <mesh position={[params.h - Math.sqrt(params.a*params.a - params.b*params.b), 0, params.k]}>
+                  <sphereGeometry args={[0.1, 16, 16]} />
+                  <meshStandardMaterial color="#F97316" />
+                </mesh>
+              </>
+            )}
+            
+            {type === 'hyperbola' && (
+              <>
+                <mesh position={[params.h + Math.sqrt(params.a*params.a + params.b*params.b), 0, params.k]}>
+                  <sphereGeometry args={[0.1, 16, 16]} />
+                  <meshStandardMaterial color="#F97316" />
+                </mesh>
+                <mesh position={[params.h - Math.sqrt(params.a*params.a + params.b*params.b), 0, params.k]}>
+                  <sphereGeometry args={[0.1, 16, 16]} />
+                  <meshStandardMaterial color="#F97316" />
+                </mesh>
+              </>
+            )}
+            
+            {type === 'parabola' && (
+              <mesh position={[params.h, 0, params.k + params.a]}>
                 <sphereGeometry args={[0.1, 16, 16]} />
                 <meshStandardMaterial color="#F97316" />
               </mesh>
-              <mesh position={[params.h - Math.sqrt(params.a*params.a - params.b*params.b), 0, params.k]}>
-                <sphereGeometry args={[0.1, 16, 16]} />
-                <meshStandardMaterial color="#F97316" />
-              </mesh>
-            </>
-          )}
-          
-          {type === 'hyperbola' && (
-            <>
-              <mesh position={[params.h + Math.sqrt(params.a*params.a + params.b*params.b), 0, params.k]}>
-                <sphereGeometry args={[0.1, 16, 16]} />
-                <meshStandardMaterial color="#F97316" />
-              </mesh>
-              <mesh position={[params.h - Math.sqrt(params.a*params.a + params.b*params.b), 0, params.k]}>
-                <sphereGeometry args={[0.1, 16, 16]} />
-                <meshStandardMaterial color="#F97316" />
-              </mesh>
-            </>
-          )}
-          
-          {type === 'parabola' && (
-            <mesh position={[params.h, 0, params.k + params.a]}>
-              <sphereGeometry args={[0.1, 16, 16]} />
-              <meshStandardMaterial color="#F97316" />
-            </mesh>
-          )}
-        </>
-      )}
+            )}
+          </>
+        )}
+      </group>
     </>
   );
 };
