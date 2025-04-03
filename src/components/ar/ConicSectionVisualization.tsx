@@ -1,5 +1,5 @@
 
-import { useRef, useState, useMemo, useEffect } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid, TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -8,8 +8,7 @@ import { Slider } from '@/components/ui/slider';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { motion } from 'framer-motion';
-import { Cone, Circle, Box } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Cone, Circle, Box } from 'lucide-react'; // Changed Sphere to Circle
 
 // Types
 type ConicType = 'circle' | 'ellipse' | 'parabola' | 'hyperbola';
@@ -26,8 +25,6 @@ interface ConicSectionProps {
   type: ConicType;
   params: ConicParams;
   color?: string;
-  showPerimeter?: boolean;
-  isIntersection?: boolean;
 }
 
 // Helper function to generate points for conics
@@ -99,86 +96,39 @@ const ConeModel = ({ height = 8, radius = 4 }) => {
 // Component to render a cutting plane
 const CuttingPlane = ({ 
   type, 
-  planeAngle = 0,
   planeSize = 10, 
-  planePosition = 0,
-  color = "#1E88E5"
+  position = [0, 0, 0], 
+  rotation = [0, 0, 0] 
 }: {
   type: ConicType;
-  planeAngle?: number;
   planeSize?: number;
-  planePosition?: number;
-  color?: string;
+  position?: [number, number, number]; // Explicitly type as tuple with 3 elements
+  rotation?: [number, number, number]; // Explicitly type as tuple with 3 elements
 }) => {
-  // Calculate position and rotation based on conic type and angle
-  const [position, rotation] = useMemo(() => {
-    // Base position for the plane (centered on cone axis)
-    const pos: [number, number, number] = [0, 4 + planePosition, 0];
-    
-    let rot: [number, number, number];
-    
+  // Set default rotations for each conic type
+  const getRotationForType = () => {
     switch (type) {
-      case 'circle':
-        // Perpendicular to cone axis
-        rot = [0, 0, 0];
-        break;
-      case 'ellipse':
-        // Angled cut but not parallel to generator
-        rot = [Math.PI / 6 + planeAngle, 0, 0];
-        break;
-      case 'parabola':
-        // Parallel to one generator line
-        rot = [Math.PI / 4, 0, 0];
-        break;
-      case 'hyperbola':
-        // Steeper angle to intersect both nappes
-        rot = [Math.PI / 2.5 - planeAngle, 0, 0];
-        break;
-      default:
-        rot = [0, 0, 0];
+      case 'circle': return [0, 0, 0] as [number, number, number]; // Typed as tuple
+      case 'ellipse': return [Math.PI / 6, 0, 0] as [number, number, number];
+      case 'parabola': return [Math.PI / 4, 0, 0] as [number, number, number];
+      case 'hyperbola': return [Math.PI / 2.5, 0, 0] as [number, number, number];
+      default: return rotation;
     }
-    
-    return [pos, rot];
-  }, [type, planeAngle, planePosition]);
+  };
   
-  // Calculate the intersection curve for highlighting
-  const intersectionPoints = useMemo(() => {
-    // This is a simplified calculation - in a real implementation
-    // we would calculate the actual intersection curve based on
-    // the cone and plane equations
-    return generateConicPoints(type, { a: 2, b: 1, c: 0, h: 0, k: 0 });
-  }, [type]);
+  const planeRotation = getRotationForType();
   
   return (
-    <>
-      <mesh position={position as THREE.Vector3} rotation={rotation as unknown as THREE.Euler}>
-        <planeGeometry args={[planeSize, planeSize]} />
-        <meshStandardMaterial color={color} transparent opacity={0.5} side={THREE.DoubleSide} />
-      </mesh>
-      
-      {/* Highlight the intersection */}
-      <group position={[0, -5, 0]}>
-        <line>
-          <bufferGeometry>
-            <float32BufferAttribute
-              attach="attributes-position"
-              array={new Float32Array(intersectionPoints.flatMap(p => [p.x, p.y, p.z]))}
-              count={intersectionPoints.length}
-              itemSize={3}
-            />
-          </bufferGeometry>
-          <lineBasicMaterial color="#FFD700" linewidth={3} />
-        </line>
-      </group>
-    </>
+    <mesh position={position} rotation={planeRotation}>
+      <planeGeometry args={[planeSize, planeSize]} />
+      <meshStandardMaterial color="#1E88E5" transparent opacity={0.5} side={THREE.DoubleSide} />
+    </mesh>
   );
 };
 
 // Component to render a conic section
-const ConicSection = ({ type, params, color = "#0EA5E9", showPerimeter = true, isIntersection = false }: ConicSectionProps) => {
+const ConicSection = ({ type, params, color = "#0EA5E9" }: ConicSectionProps) => {
   const points = useMemo(() => generateConicPoints(type, params), [type, params]);
-  
-  // Create positions array for the buffer geometry
   const positions = useMemo(() => {
     return new Float32Array(points.flatMap(p => [p.x, p.y, p.z]));
   }, [points]);
@@ -199,30 +149,22 @@ const ConicSection = ({ type, params, color = "#0EA5E9", showPerimeter = true, i
   return (
     <>
       <group>
-        {/* Perimeter outline */}
-        {showPerimeter && (
-          <line>
-            <bufferGeometry>
-              <bufferAttribute
-                attach="attributes-position"
-                count={points.length}
-                array={positions}
-                itemSize={3}
-              />
-              <bufferAttribute
-                attach="index"
-                array={indices}
-                itemSize={1}
-              />
-            </bufferGeometry>
-            <lineBasicMaterial color={isIntersection ? "#FFD700" : "#000000"} linewidth={isIntersection ? 3 : 2} />
-          </line>
-        )}
-        
-        {/* Filled shape */}
+        {/* Use regular mesh instead of lineSegments for better visibility */}
         <mesh>
-          <shapeGeometry args={[new THREE.Shape(points.map(p => new THREE.Vector2(p.x, p.z)))]} />
-          <meshBasicMaterial color={color} opacity={0.5} transparent side={THREE.DoubleSide} />
+          <bufferGeometry>
+            <bufferAttribute
+              attach="attributes-position"
+              count={points.length}
+              array={positions}
+              itemSize={3}
+            />
+            <bufferAttribute
+              attach="index"
+              array={indices}
+              itemSize={1}
+            />
+          </bufferGeometry>
+          <lineBasicMaterial color={color} linewidth={3} />
         </mesh>
         
         {/* Plot the focus points for ellipse, parabola and hyperbola */}
@@ -302,15 +244,9 @@ export default function ConicSectionVisualization() {
     h: 0, 
     k: 0 
   });
-  const [viewMode, setViewMode] = useState<'standard' | '3d-cone'>('3d-cone');
+  const [viewMode, setViewMode] = useState<'standard' | '3d-cone'>('standard');
   const [showCuttingPlane, setShowCuttingPlane] = useState(true);
   const [planePosition, setPlanePosition] = useState(0);
-  const [planeAngle, setPlaneAngle] = useState(0);
-  
-  // Effect to update params when type changes to show correct shape
-  useEffect(() => {
-    handleTypeChange(type);
-  }, [type]);
 
   // Get equation string based on conic type
   const getEquation = () => {
@@ -337,158 +273,85 @@ export default function ConicSectionVisualization() {
     switch (newType) {
       case 'circle':
         setParams({ a: 2, b: 2, c: 0, h: 0, k: 0 });
-        setPlaneAngle(0);
         break;
       case 'ellipse':
         setParams({ a: 3, b: 2, c: 0, h: 0, k: 0 });
-        setPlaneAngle(0.3);
         break;
       case 'parabola':
         setParams({ a: 1, b: 0, c: 0, h: 0, k: 0 });
-        setPlaneAngle(0.5);
         break;
       case 'hyperbola':
         setParams({ a: 2, b: 1, c: 0, h: 0, k: 0 });
-        setPlaneAngle(0.7);
         break;
-    }
-  };
-
-  // Tooltip content for each control
-  const getTooltipContent = (controlType: string) => {
-    switch (controlType) {
-      case 'circle':
-        return "A circle is formed when a plane intersects a cone perpendicular to its axis";
-      case 'ellipse':
-        return "An ellipse is formed when a plane intersects a cone at an angle to its axis";
-      case 'parabola':
-        return "A parabola is formed when a plane intersects a cone parallel to a generator line";
-      case 'hyperbola':
-        return "A hyperbola is formed when a plane intersects both nappes of a cone";
-      case 'plane-position':
-        return "Adjust the height of the cutting plane";
-      case 'plane-angle':
-        return "Adjust the angle of the cutting plane";
-      case 'radius':
-        return "Adjust the radius of the circle";
-      case 'semi-major':
-        return "Adjust the semi-major axis length";
-      case 'semi-minor':
-        return "Adjust the semi-minor axis length";
-      case 'parameter':
-        return "Adjust the parameter of the parabola";
-      default:
-        return "";
     }
   };
 
   return (
-    <TooltipProvider>
-      <div className="flex flex-col space-y-4">
-        <div className="flex flex-col md:flex-row gap-4 items-start">
-          <Card className="w-full md:w-64 shadow-lg ar-card">
-            <CardContent className="p-4">
-              <h3 className="text-lg font-bold mb-4">Visualization Type</h3>
-              <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'standard' | '3d-cone')} className="mb-6">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="standard">Standard</TabsTrigger>
-                  <TabsTrigger value="3d-cone">3D Cone</TabsTrigger>
-                </TabsList>
-              </Tabs>
-              
-              <h3 className="text-lg font-bold mb-4">Conic Section Type</h3>
-              <div className="flex flex-col space-y-2 mb-6">
-                {(['circle', 'ellipse', 'parabola', 'hyperbola'] as ConicType[]).map((t) => (
-                  <Tooltip key={t}>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant={type === t ? "default" : "outline"}
-                        className={`w-full ${type === t ? 'bg-ar-blue text-white' : ''}`}
-                        onClick={() => handleTypeChange(t)}
-                      >
-                        {t.charAt(0).toUpperCase() + t.slice(1)}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {getTooltipContent(t)}
-                    </TooltipContent>
-                  </Tooltip>
-                ))}
-              </div>
-              
-              {viewMode === '3d-cone' && (
-                <div className="space-y-4">
-                  <div className="flex items-center mb-2">
-                    <label className="text-sm font-medium flex-1">Cutting Plane</label>
-                    <Button 
-                      size="sm" 
-                      variant={showCuttingPlane ? "default" : "outline"}
-                      onClick={() => setShowCuttingPlane(!showCuttingPlane)}
-                      className="ml-2"
-                    >
-                      {showCuttingPlane ? "Hide" : "Show"}
-                    </Button>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <label className="text-sm font-medium">Plane Position</label>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {getTooltipContent('plane-position')}
-                      </TooltipContent>
-                    </Tooltip>
-                    <Slider
-                      value={[planePosition]}
-                      min={-4}
-                      max={4}
-                      step={0.1}
-                      onValueChange={(values) => setPlanePosition(values[0])}
-                    />
-                    <div className="text-xs text-right">{planePosition.toFixed(1)}</div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <label className="text-sm font-medium">Plane Angle</label>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {getTooltipContent('plane-angle')}
-                      </TooltipContent>
-                    </Tooltip>
-                    <Slider
-                      value={[planeAngle]}
-                      min={0}
-                      max={1.5}
-                      step={0.05}
-                      onValueChange={(values) => setPlaneAngle(values[0])}
-                    />
-                    <div className="text-xs text-right">{planeAngle.toFixed(2)}</div>
-                  </div>
+    <div className="flex flex-col space-y-4">
+      <div className="flex flex-col md:flex-row gap-4 items-start">
+        <Card className="w-full md:w-64 shadow-lg ar-card">
+          <CardContent className="p-4">
+            <h3 className="text-lg font-bold mb-4">Visualization Type</h3>
+            <Tabs defaultValue={viewMode} onValueChange={(v) => setViewMode(v as 'standard' | '3d-cone')} className="mb-6">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="standard">Standard</TabsTrigger>
+                <TabsTrigger value="3d-cone">3D Cone</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            
+            <h3 className="text-lg font-bold mb-4">Conic Section Type</h3>
+            <div className="flex flex-col space-y-2 mb-6">
+              {(['circle', 'ellipse', 'parabola', 'hyperbola'] as ConicType[]).map((t) => (
+                <Button
+                  key={t}
+                  variant={type === t ? "default" : "outline"}
+                  className={`w-full ${type === t ? 'bg-ar-blue text-white' : ''}`}
+                  onClick={() => handleTypeChange(t)}
+                >
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </Button>
+              ))}
+            </div>
+            
+            {viewMode === '3d-cone' && (
+              <div className="space-y-4">
+                <div className="flex items-center mb-2">
+                  <label className="text-sm font-medium flex-1">Cutting Plane</label>
+                  <Button 
+                    size="sm" 
+                    variant={showCuttingPlane ? "default" : "outline"}
+                    onClick={() => setShowCuttingPlane(!showCuttingPlane)}
+                    className="ml-2"
+                  >
+                    {showCuttingPlane ? "Hide" : "Show"}
+                  </Button>
                 </div>
-              )}
-              
-              <div className="space-y-4 mt-6">
-                <h3 className="text-lg font-bold mb-2">Shape Parameters</h3>
                 
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Plane Position</label>
+                  <Slider
+                    value={[planePosition]}
+                    min={-4}
+                    max={4}
+                    step={0.1}
+                    onValueChange={(values) => setPlanePosition(values[0])}
+                  />
+                  <div className="text-xs text-right">{planePosition.toFixed(1)}</div>
+                </div>
+              </div>
+            )}
+            
+            {viewMode === 'standard' && (
+              <div className="space-y-4">
                 {type === 'circle' && (
                   <div className="space-y-2">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <label className="text-sm font-medium">Radius (a)</label>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {getTooltipContent('radius')}
-                      </TooltipContent>
-                    </Tooltip>
+                    <label className="text-sm font-medium">Radius (a)</label>
                     <Slider
                       value={[params.a]}
                       min={0.5}
                       max={5}
                       step={0.1}
-                      onValueChange={(values) => setParams({...params, a: values[0], b: values[0]})}
+                      onValueChange={(values) => setParams({...params, a: values[0]})}
                     />
                     <div className="text-xs text-right">{params.a.toFixed(1)}</div>
                   </div>
@@ -497,14 +360,7 @@ export default function ConicSectionVisualization() {
                 {type === 'ellipse' && (
                   <>
                     <div className="space-y-2">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <label className="text-sm font-medium">Semi-major axis (a)</label>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {getTooltipContent('semi-major')}
-                        </TooltipContent>
-                      </Tooltip>
+                      <label className="text-sm font-medium">Semi-major axis (a)</label>
                       <Slider
                         value={[params.a]}
                         min={0.5}
@@ -522,14 +378,7 @@ export default function ConicSectionVisualization() {
                       <div className="text-xs text-right">{params.a.toFixed(1)}</div>
                     </div>
                     <div className="space-y-2">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <label className="text-sm font-medium">Semi-minor axis (b)</label>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {getTooltipContent('semi-minor')}
-                        </TooltipContent>
-                      </Tooltip>
+                      <label className="text-sm font-medium">Semi-minor axis (b)</label>
                       <Slider
                         value={[params.b]}
                         min={0.5}
@@ -544,14 +393,7 @@ export default function ConicSectionVisualization() {
                 
                 {type === 'parabola' && (
                   <div className="space-y-2">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <label className="text-sm font-medium">Parameter (a)</label>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {getTooltipContent('parameter')}
-                      </TooltipContent>
-                    </Tooltip>
+                    <label className="text-sm font-medium">Parameter (a)</label>
                     <Slider
                       value={[params.a]}
                       min={0.5}
@@ -566,14 +408,7 @@ export default function ConicSectionVisualization() {
                 {type === 'hyperbola' && (
                   <>
                     <div className="space-y-2">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <label className="text-sm font-medium">Semi-major axis (a)</label>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {getTooltipContent('semi-major')}
-                        </TooltipContent>
-                      </Tooltip>
+                      <label className="text-sm font-medium">Semi-major axis (a)</label>
                       <Slider
                         value={[params.a]}
                         min={0.5}
@@ -584,14 +419,7 @@ export default function ConicSectionVisualization() {
                       <div className="text-xs text-right">{params.a.toFixed(1)}</div>
                     </div>
                     <div className="space-y-2">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <label className="text-sm font-medium">Semi-minor axis (b)</label>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {getTooltipContent('semi-minor')}
-                        </TooltipContent>
-                      </Tooltip>
+                      <label className="text-sm font-medium">Semi-minor axis (b)</label>
                       <Slider
                         value={[params.b]}
                         min={0.5}
@@ -604,60 +432,59 @@ export default function ConicSectionVisualization() {
                   </>
                 )}
               </div>
-            </CardContent>
+            )}
+          </CardContent>
+        </Card>
+        
+        <div className="flex-1 w-full">
+          <Card className="h-[480px] shadow-lg overflow-hidden ar-card">
+            <Canvas camera={{ position: viewMode === '3d-cone' ? [6, 3, 6] : [0, 5, 5], fov: 50 }}>
+              <Scene>
+                {viewMode === 'standard' ? (
+                  <ConicSection type={type} params={params} />
+                ) : (
+                  <>
+                    <ConeModel />
+                    {showCuttingPlane && (
+                      <CuttingPlane 
+                        type={type} 
+                        position={[0, planePosition + 4, 0]} 
+                      />
+                    )}
+                    {/* Also display the resulting conic section */}
+                    <group position={[0, -5, 0]}>
+                      <ConicSection type={type} params={params} />
+                    </group>
+                  </>
+                )}
+              </Scene>
+            </Canvas>
           </Card>
-          
-          <div className="flex-1 w-full">
-            <Card className="h-[480px] shadow-lg overflow-hidden ar-card">
-              <Canvas camera={{ position: viewMode === '3d-cone' ? [6, 3, 6] : [0, 5, 5], fov: 50 }}>
-                <Scene>
-                  {viewMode === 'standard' ? (
-                    <ConicSection type={type} params={params} showPerimeter={true} />
-                  ) : (
-                    <>
-                      <ConeModel />
-                      {showCuttingPlane && (
-                        <CuttingPlane 
-                          type={type} 
-                          planePosition={planePosition}
-                          planeAngle={planeAngle}
-                        />
-                      )}
-                      {/* Also display the resulting conic section */}
-                      <group position={[0, -5, 0]}>
-                        <ConicSection type={type} params={params} isIntersection={true} />
-                      </group>
-                    </>
-                  )}
-                </Scene>
-              </Canvas>
-            </Card>
-          </div>
+        </div>
+      </div>
+      
+      <Card className="w-full p-4 shadow-lg ar-card">
+        <h3 className="font-bold text-lg mb-2">Equation</h3>
+        <div className="math-formula text-lg">
+          {getEquation()}
         </div>
         
-        <Card className="w-full p-4 shadow-lg ar-card">
-          <h3 className="font-bold text-lg mb-2">Equation</h3>
-          <div className="math-formula text-lg">
-            {getEquation()}
-          </div>
-          
-          <div className="mt-4">
-            <h3 className="font-bold text-lg mb-2">Properties</h3>
-            {type === 'circle' && (
-              <p>A circle is the set of all points in a plane that are at a constant distance (radius) from a fixed point (center). It is formed by a plane cutting a cone perpendicular to its axis.</p>
-            )}
-            {type === 'ellipse' && (
-              <p>An ellipse is the set of all points in a plane such that the sum of distances from two fixed points (foci) is constant. It is formed when a plane cuts a cone at an angle to its axis (not parallel to any generator).</p>
-            )}
-            {type === 'parabola' && (
-              <p>A parabola is the set of all points in a plane that are equidistant from a fixed point (focus) and a fixed line (directrix). It is formed when a plane cuts a cone parallel to exactly one generator line of the cone.</p>
-            )}
-            {type === 'hyperbola' && (
-              <p>A hyperbola is the set of all points in a plane such that the absolute difference of distances from two fixed points (foci) is constant. It forms when a plane cuts both nappes of a cone in a steep angle relative to the axis.</p>
-            )}
-          </div>
-        </Card>
-      </div>
-    </TooltipProvider>
+        <div className="mt-4">
+          <h3 className="font-bold text-lg mb-2">Properties</h3>
+          {type === 'circle' && (
+            <p>A circle is the set of all points in a plane that are at a constant distance (radius) from a fixed point (center). It is formed by a plane cutting a cone perpendicular to its axis.</p>
+          )}
+          {type === 'ellipse' && (
+            <p>An ellipse is the set of all points in a plane such that the sum of distances from two fixed points (foci) is constant. It is formed when a plane cuts a cone at an angle to its axis.</p>
+          )}
+          {type === 'parabola' && (
+            <p>A parabola is the set of all points in a plane that are equidistant from a fixed point (focus) and a fixed line (directrix). It is formed when a plane cuts a cone parallel to one of its generators.</p>
+          )}
+          {type === 'hyperbola' && (
+            <p>A hyperbola is the set of all points in a plane such that the absolute difference of distances from two fixed points (foci) is constant. It forms when a plane cuts both nappes of a cone.</p>
+          )}
+        </div>
+      </Card>
+    </div>
   );
 }
