@@ -45,7 +45,7 @@ const Index = () => {
           <div className="rounded-full bg-ar-blue/10 p-3 mb-4">
             <Grid3X3 size={32} className="text-ar-blue" />
           </div>
-          <h1 className="text-4xl font-bold tracking-tight">Math Vision AR</h1>
+          <h1 className="text-4xl font-bold tracking-tight">AugumentED</h1>
           <p className="text-xl text-muted-foreground mt-2 max-w-2xl">
             Visualize complex mathematical concepts in augmented reality and master coordinate geometry through immersive learning
           </p>

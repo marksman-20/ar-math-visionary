@@ -85,7 +85,7 @@ export function SidebarLayout({ children }: SidebarLayoutProps) {
               <div className="rounded-md bg-ar-blue p-1">
                 <Grid3X3 className="h-5 w-5 text-white" />
               </div>
-              <div className="font-bold text-lg">Math Vision AR</div>
+              <div className="font-bold text-lg">AugumentED</div>
             </div>
           </SidebarHeader>
           

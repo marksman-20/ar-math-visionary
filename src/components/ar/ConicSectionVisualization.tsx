@@ -1,5 +1,5 @@
 
-import { useRef, useState } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid } from '@react-three/drei';
 import * as THREE from 'three';
@@ -81,13 +81,29 @@ const generateConicPoints = (type: ConicType, params: ConicParams, segments = 10
 
 // Component to render a conic section
 const ConicSection = ({ type, params, color = "#0EA5E9" }: ConicSectionProps) => {
-  const points = generateConicPoints(type, params);
-  const positions = new Float32Array(points.flatMap(p => [p.x, p.y, p.z]));
+  const points = useMemo(() => generateConicPoints(type, params), [type, params]);
+  const positions = useMemo(() => {
+    return new Float32Array(points.flatMap(p => [p.x, p.y, p.z]));
+  }, [points]);
+  
+  // Create indices for line segments (connecting points)
+  const indices = useMemo(() => {
+    const idx = [];
+    for (let i = 0; i < points.length - 1; i++) {
+      idx.push(i, i + 1);
+    }
+    if (type !== 'parabola') {
+      // Connect the last and first point to close the loop
+      idx.push(points.length - 1, 0);
+    }
+    return new Uint16Array(idx);
+  }, [points, type]);
   
   return (
     <>
       <group>
-        <lineSegments>
+        {/* Use regular mesh instead of lineSegments for better visibility */}
+        <mesh>
           <bufferGeometry>
             <bufferAttribute
               attach="attributes-position"
@@ -95,9 +111,14 @@ const ConicSection = ({ type, params, color = "#0EA5E9" }: ConicSectionProps) =>
               array={positions}
               itemSize={3}
             />
+            <bufferAttribute
+              attach="index"
+              array={indices}
+              itemSize={1}
+            />
           </bufferGeometry>
-          <lineBasicMaterial color={color} linewidth={2} />
-        </lineSegments>
+          <lineBasicMaterial color={color} linewidth={3} />
+        </mesh>
         
         {/* Plot the focus points for ellipse, parabola and hyperbola */}
         {type !== 'circle' && (
@@ -161,7 +182,7 @@ const Scene = ({ children }: { children: React.ReactNode }) => {
         infiniteGrid={true}
       />
       {children}
-      <OrbitControls />
+      <OrbitControls makeDefault />
     </>
   );
 };
