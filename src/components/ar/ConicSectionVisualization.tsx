@@ -8,7 +8,7 @@ import { Slider } from '@/components/ui/slider';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { motion } from 'framer-motion';
-import { Cone, Sphere, Box } from 'lucide-react';
+import { Cone, Circle, Box } from 'lucide-react'; // Changed Sphere to Circle
 
 // Types
 type ConicType = 'circle' | 'ellipse' | 'parabola' | 'hyperbola';
@@ -99,14 +99,19 @@ const CuttingPlane = ({
   planeSize = 10, 
   position = [0, 0, 0], 
   rotation = [0, 0, 0] 
+}: {
+  type: ConicType;
+  planeSize?: number;
+  position?: [number, number, number]; // Explicitly type as tuple with 3 elements
+  rotation?: [number, number, number]; // Explicitly type as tuple with 3 elements
 }) => {
   // Set default rotations for each conic type
   const getRotationForType = () => {
     switch (type) {
-      case 'circle': return [0, 0, 0]; // Horizontal cut
-      case 'ellipse': return [Math.PI / 6, 0, 0]; // Angled cut
-      case 'parabola': return [Math.PI / 4, 0, 0]; // 45-degree cut
-      case 'hyperbola': return [Math.PI / 2.5, 0, 0]; // Steep cut
+      case 'circle': return [0, 0, 0] as [number, number, number]; // Typed as tuple
+      case 'ellipse': return [Math.PI / 6, 0, 0] as [number, number, number];
+      case 'parabola': return [Math.PI / 4, 0, 0] as [number, number, number];
+      case 'hyperbola': return [Math.PI / 2.5, 0, 0] as [number, number, number];
       default: return rotation;
     }
   };
