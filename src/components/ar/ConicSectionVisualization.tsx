@@ -1,5 +1,5 @@
 
-import { useRef, useState, useMemo } from 'react';
+import { useRef, useState, useMemo, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid, TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -96,32 +96,52 @@ const ConeModel = ({ height = 8, radius = 4 }) => {
 // Component to render a cutting plane
 const CuttingPlane = ({ 
   type, 
+  planeAngle = 0,
   planeSize = 10, 
-  position = [0, 0, 0], 
-  rotation = [0, 0, 0] 
+  planePosition = 0,
+  color = "#1E88E5"
 }: {
   type: ConicType;
+  planeAngle?: number;
   planeSize?: number;
-  position?: [number, number, number]; // Explicitly type as tuple with 3 elements
-  rotation?: [number, number, number]; // Explicitly type as tuple with 3 elements
+  planePosition?: number;
+  color?: string;
 }) => {
-  // Set default rotations for each conic type
-  const getRotationForType = () => {
+  // Calculate position and rotation based on conic type and angle
+  const [position, rotation] = useMemo(() => {
+    // Base position for the plane (centered on cone axis)
+    const pos: [number, number, number] = [0, 4 + planePosition, 0];
+    
+    let rot: [number, number, number];
+    
     switch (type) {
-      case 'circle': return [0, 0, 0] as [number, number, number]; // Typed as tuple
-      case 'ellipse': return [Math.PI / 6, 0, 0] as [number, number, number];
-      case 'parabola': return [Math.PI / 4, 0, 0] as [number, number, number];
-      case 'hyperbola': return [Math.PI / 2.5, 0, 0] as [number, number, number];
-      default: return rotation;
+      case 'circle':
+        // Perpendicular to cone axis
+        rot = [0, 0, 0];
+        break;
+      case 'ellipse':
+        // Angled cut but not parallel to generator
+        rot = [Math.PI / 6 + planeAngle, 0, 0];
+        break;
+      case 'parabola':
+        // Parallel to one generator line
+        rot = [Math.PI / 4, 0, 0];
+        break;
+      case 'hyperbola':
+        // Steeper angle to intersect both nappes
+        rot = [Math.PI / 2.5 - planeAngle, 0, 0];
+        break;
+      default:
+        rot = [0, 0, 0];
     }
-  };
-  
-  const planeRotation = getRotationForType();
+    
+    return [pos, rot];
+  }, [type, planeAngle, planePosition]);
   
   return (
-    <mesh position={position} rotation={planeRotation}>
+    <mesh position={position} rotation={rotation}>
       <planeGeometry args={[planeSize, planeSize]} />
-      <meshStandardMaterial color="#1E88E5" transparent opacity={0.5} side={THREE.DoubleSide} />
+      <meshStandardMaterial color={color} transparent opacity={0.5} side={THREE.DoubleSide} />
     </mesh>
   );
 };
@@ -244,9 +264,15 @@ export default function ConicSectionVisualization() {
     h: 0, 
     k: 0 
   });
-  const [viewMode, setViewMode] = useState<'standard' | '3d-cone'>('standard');
+  const [viewMode, setViewMode] = useState<'standard' | '3d-cone'>('3d-cone');
   const [showCuttingPlane, setShowCuttingPlane] = useState(true);
   const [planePosition, setPlanePosition] = useState(0);
+  const [planeAngle, setPlaneAngle] = useState(0);
+  
+  // Effect to update params when type changes to show correct shape
+  useEffect(() => {
+    handleTypeChange(type);
+  }, [type]);
 
   // Get equation string based on conic type
   const getEquation = () => {
@@ -273,15 +299,19 @@ export default function ConicSectionVisualization() {
     switch (newType) {
       case 'circle':
         setParams({ a: 2, b: 2, c: 0, h: 0, k: 0 });
+        setPlaneAngle(0);
         break;
       case 'ellipse':
         setParams({ a: 3, b: 2, c: 0, h: 0, k: 0 });
+        setPlaneAngle(0.3);
         break;
       case 'parabola':
         setParams({ a: 1, b: 0, c: 0, h: 0, k: 0 });
+        setPlaneAngle(0.5);
         break;
       case 'hyperbola':
         setParams({ a: 2, b: 1, c: 0, h: 0, k: 0 });
+        setPlaneAngle(0.7);
         break;
     }
   };
@@ -292,7 +322,7 @@ export default function ConicSectionVisualization() {
         <Card className="w-full md:w-64 shadow-lg ar-card">
           <CardContent className="p-4">
             <h3 className="text-lg font-bold mb-4">Visualization Type</h3>
-            <Tabs defaultValue={viewMode} onValueChange={(v) => setViewMode(v as 'standard' | '3d-cone')} className="mb-6">
+            <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'standard' | '3d-cone')} className="mb-6">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="standard">Standard</TabsTrigger>
                 <TabsTrigger value="3d-cone">3D Cone</TabsTrigger>
@@ -338,14 +368,90 @@ export default function ConicSectionVisualization() {
                   />
                   <div className="text-xs text-right">{planePosition.toFixed(1)}</div>
                 </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Plane Angle</label>
+                  <Slider
+                    value={[planeAngle]}
+                    min={0}
+                    max={1.5}
+                    step={0.05}
+                    onValueChange={(values) => setPlaneAngle(values[0])}
+                  />
+                  <div className="text-xs text-right">{planeAngle.toFixed(2)}</div>
+                </div>
               </div>
             )}
             
-            {viewMode === 'standard' && (
-              <div className="space-y-4">
-                {type === 'circle' && (
+            <div className="space-y-4 mt-6">
+              <h3 className="text-lg font-bold mb-2">Shape Parameters</h3>
+              
+              {type === 'circle' && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Radius (a)</label>
+                  <Slider
+                    value={[params.a]}
+                    min={0.5}
+                    max={5}
+                    step={0.1}
+                    onValueChange={(values) => setParams({...params, a: values[0], b: values[0]})}
+                  />
+                  <div className="text-xs text-right">{params.a.toFixed(1)}</div>
+                </div>
+              )}
+              
+              {type === 'ellipse' && (
+                <>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Radius (a)</label>
+                    <label className="text-sm font-medium">Semi-major axis (a)</label>
+                    <Slider
+                      value={[params.a]}
+                      min={0.5}
+                      max={5}
+                      step={0.1}
+                      onValueChange={(values) => {
+                        const newA = values[0];
+                        setParams({
+                          ...params, 
+                          a: newA,
+                          b: Math.min(params.b, newA) // Ensure b ≤ a
+                        });
+                      }}
+                    />
+                    <div className="text-xs text-right">{params.a.toFixed(1)}</div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Semi-minor axis (b)</label>
+                    <Slider
+                      value={[params.b]}
+                      min={0.5}
+                      max={Math.min(5, params.a)}
+                      step={0.1}
+                      onValueChange={(values) => setParams({...params, b: values[0]})}
+                    />
+                    <div className="text-xs text-right">{params.b.toFixed(1)}</div>
+                  </div>
+                </>
+              )}
+              
+              {type === 'parabola' && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Parameter (a)</label>
+                  <Slider
+                    value={[params.a]}
+                    min={0.5}
+                    max={5}
+                    step={0.1}
+                    onValueChange={(values) => setParams({...params, a: values[0]})}
+                  />
+                  <div className="text-xs text-right">{params.a.toFixed(1)}</div>
+                </div>
+              )}
+              
+              {type === 'hyperbola' && (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Semi-major axis (a)</label>
                     <Slider
                       value={[params.a]}
                       min={0.5}
@@ -355,84 +461,20 @@ export default function ConicSectionVisualization() {
                     />
                     <div className="text-xs text-right">{params.a.toFixed(1)}</div>
                   </div>
-                )}
-                
-                {type === 'ellipse' && (
-                  <>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Semi-major axis (a)</label>
-                      <Slider
-                        value={[params.a]}
-                        min={0.5}
-                        max={5}
-                        step={0.1}
-                        onValueChange={(values) => {
-                          const newA = values[0];
-                          setParams({
-                            ...params, 
-                            a: newA,
-                            b: Math.min(params.b, newA) // Ensure b ≤ a
-                          });
-                        }}
-                      />
-                      <div className="text-xs text-right">{params.a.toFixed(1)}</div>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Semi-minor axis (b)</label>
-                      <Slider
-                        value={[params.b]}
-                        min={0.5}
-                        max={Math.min(5, params.a)}
-                        step={0.1}
-                        onValueChange={(values) => setParams({...params, b: values[0]})}
-                      />
-                      <div className="text-xs text-right">{params.b.toFixed(1)}</div>
-                    </div>
-                  </>
-                )}
-                
-                {type === 'parabola' && (
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Parameter (a)</label>
+                    <label className="text-sm font-medium">Semi-minor axis (b)</label>
                     <Slider
-                      value={[params.a]}
+                      value={[params.b]}
                       min={0.5}
                       max={5}
                       step={0.1}
-                      onValueChange={(values) => setParams({...params, a: values[0]})}
+                      onValueChange={(values) => setParams({...params, b: values[0]})}
                     />
-                    <div className="text-xs text-right">{params.a.toFixed(1)}</div>
+                    <div className="text-xs text-right">{params.b.toFixed(1)}</div>
                   </div>
-                )}
-                
-                {type === 'hyperbola' && (
-                  <>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Semi-major axis (a)</label>
-                      <Slider
-                        value={[params.a]}
-                        min={0.5}
-                        max={5}
-                        step={0.1}
-                        onValueChange={(values) => setParams({...params, a: values[0]})}
-                      />
-                      <div className="text-xs text-right">{params.a.toFixed(1)}</div>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Semi-minor axis (b)</label>
-                      <Slider
-                        value={[params.b]}
-                        min={0.5}
-                        max={5}
-                        step={0.1}
-                        onValueChange={(values) => setParams({...params, b: values[0]})}
-                      />
-                      <div className="text-xs text-right">{params.b.toFixed(1)}</div>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
+                </>
+              )}
+            </div>
           </CardContent>
         </Card>
         
@@ -448,7 +490,8 @@ export default function ConicSectionVisualization() {
                     {showCuttingPlane && (
                       <CuttingPlane 
                         type={type} 
-                        position={[0, planePosition + 4, 0]} 
+                        planePosition={planePosition}
+                        planeAngle={planeAngle}
                       />
                     )}
                     {/* Also display the resulting conic section */}
@@ -475,13 +518,13 @@ export default function ConicSectionVisualization() {
             <p>A circle is the set of all points in a plane that are at a constant distance (radius) from a fixed point (center). It is formed by a plane cutting a cone perpendicular to its axis.</p>
           )}
           {type === 'ellipse' && (
-            <p>An ellipse is the set of all points in a plane such that the sum of distances from two fixed points (foci) is constant. It is formed when a plane cuts a cone at an angle to its axis.</p>
+            <p>An ellipse is the set of all points in a plane such that the sum of distances from two fixed points (foci) is constant. It is formed when a plane cuts a cone at an angle to its axis (not parallel to any generator).</p>
           )}
           {type === 'parabola' && (
-            <p>A parabola is the set of all points in a plane that are equidistant from a fixed point (focus) and a fixed line (directrix). It is formed when a plane cuts a cone parallel to one of its generators.</p>
+            <p>A parabola is the set of all points in a plane that are equidistant from a fixed point (focus) and a fixed line (directrix). It is formed when a plane cuts a cone parallel to exactly one generator line of the cone.</p>
           )}
           {type === 'hyperbola' && (
-            <p>A hyperbola is the set of all points in a plane such that the absolute difference of distances from two fixed points (foci) is constant. It forms when a plane cuts both nappes of a cone.</p>
+            <p>A hyperbola is the set of all points in a plane such that the absolute difference of distances from two fixed points (foci) is constant. It forms when a plane cuts both nappes of a cone in a steep angle relative to the axis.</p>
           )}
         </div>
       </Card>
