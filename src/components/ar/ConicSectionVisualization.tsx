@@ -82,14 +82,20 @@ const generateConicPoints = (type: ConicType, params: ConicParams, segments = 10
 // Component to render a conic section
 const ConicSection = ({ type, params, color = "#0EA5E9" }: ConicSectionProps) => {
   const points = generateConicPoints(type, params);
-  const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
   
   return (
     <>
-      <line>
-        <bufferGeometry attach="geometry" {...lineGeometry} />
-        <lineBasicMaterial attach="material" color={color} linewidth={2} />
-      </line>
+      <lineSegments>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={points.length}
+            array={new Float32Array(points.flatMap(p => [p.x, p.y, p.z]))}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <lineBasicMaterial color={color} linewidth={2} />
+      </lineSegments>
       
       {/* Plot the focus points for ellipse, parabola and hyperbola */}
       {type !== 'circle' && (

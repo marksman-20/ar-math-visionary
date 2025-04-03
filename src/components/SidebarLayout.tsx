@@ -78,7 +78,7 @@ export function SidebarLayout({ children }: SidebarLayoutProps) {
 
   return (
     <div className="min-h-screen flex w-full">
-      <SidebarProvider defaultCollapsed={isMobile}>
+      <SidebarProvider>
         <Sidebar className="border-r border-border">
           <SidebarHeader className="flex items-center px-4 py-2">
             <div className="flex items-center gap-2">
